@@ -124,7 +124,7 @@ function buildRainforest(world) {
     if (big) buttress(world, p.x, p.z, 0.9 + p.s * 0.25, { fins: 4 + (i % 3), height: 2 + p.s, reach: 2 + p.s, seed: 70 + i, material: bark });
   });
   // roots spilling over the bank near the trail
-  modelInstances(world, 'root_cluster_01', scatter(5, 23, 90, (x, z) => { const d = trail.dist(x, z)[0]; return d > 3 && d < 7; }), { scale: 1.1, sink: 0.15, tint: 0x9a9488, moss: 0.6, collide: 'auto' });
+  modelInstances(world, 'root_cluster_01', scatter(3, 23, 90, (x, z) => { const d = trail.dist(x, z)[0]; return d > 3 && d < 7; }), { scale: 1.1, sink: 0.15, tint: 0x9a9488, moss: 0.6, collide: 'auto' });
 
   // the canopy ceiling, thinner over the creek so a little sky shows along the water
   canopy(world, scatter(Q(420), 24, 170, (x, z, R) => creek.dist(x, z)[0] > 5 || R() < 0.25), { y: [15, 27], size: [5, 9] });
@@ -151,20 +151,20 @@ function buildRainforest(world) {
 
   /* understorey: scanned plants (Poly Haven) */
   const under = (x, z) => away(x, z, 1.7, 2.3);
-  modelInstances(world, 'fern_02', scatter(Q(650), 41, 130, under), { scale: 1.7, tint: 0xa8b494, wind: [0.04, 0.05], translucent: 0x5a7a2a, far: 45, sink: 0.04, onFail: () => ferns(world, scatter(300, 41, 130, under)) });
-  modelInstances(world, 'calathea_orbifolia_01', scatter(160, 42, 110, under), { scale: 1.3, tint: 0xb8c0a8, wind: [0.02, 0.05], translucent: 0x6a8a3a, far: 35, sink: 0.02 });
-  modelInstances(world, 'anthurium_botany_01', scatter(130, 43, 100, under), { scale: 1.4, tint: 0xb0b8a0, wind: [0.02, 0.05], translucent: 0x6a8a3a, far: 32, sink: 0.02 });
-  modelInstances(world, 'shrub_04', scatter(80, 44, 120, (x, z) => away(x, z, 2.5, 3)), { scale: 1.0, tint: 0x98a888, wind: [0.03, 0.05], translucent: 0x5a7a2a, far: 50, sink: 0.05 });
-  modelInstances(world, 'pachira_aquatica_01', scatter(14, 45, 80, (x, z) => away(x, z, 3, 4)), { scale: 1.6, tint: 0xb0b8a0, wind: [0.015, 0.3], translucent: 0x6a8a3a, far: 40, sink: 0.02 });
-  modelInstances(world, 'nettle_plant', scatter(90, 46, 110, under), { scale: 1.1, tint: 0xa0ac90, wind: [0.03, 0.05], far: 30, sink: 0.02 });
+  modelInstances(world, 'fern_02', scatter(Q(650), 41, 130, under), { scale: 1.7, tint: 0xa8b494, wind: [0.04, 0.05], translucent: 0x5a7a2a, far: 38, sink: 0.04, onFail: () => ferns(world, scatter(300, 41, 130, under)) });
+  modelInstances(world, 'calathea_orbifolia_01', scatter(Q(120), 42, 110, under), { scale: 1.3, tint: 0xb8c0a8, wind: [0.02, 0.05], translucent: 0x6a8a3a, far: 32, sink: 0.02, cast: false });
+  modelInstances(world, 'anthurium_botany_01', scatter(Q(110), 43, 100, under), { scale: 1.4, tint: 0xb0b8a0, wind: [0.02, 0.05], translucent: 0x6a8a3a, far: 28, sink: 0.02, cast: false });
+  modelInstances(world, 'shrub_04', scatter(Q(30), 44, 120, (x, z) => away(x, z, 2.5, 3)), { scale: 1.0, tint: 0x98a888, wind: [0.03, 0.05], translucent: 0x5a7a2a, far: 38, sink: 0.05 });
+  modelInstances(world, 'pachira_aquatica_01', scatter(8, 45, 80, (x, z) => away(x, z, 3, 4)), { scale: 1.6, tint: 0xb0b8a0, wind: [0.015, 0.3], translucent: 0x6a8a3a, far: 40, sink: 0.02 });
+  modelInstances(world, 'nettle_plant', scatter(Q(40), 46, 110, under), { scale: 1.1, tint: 0xa0ac90, wind: [0.03, 0.05], far: 24, sink: 0.02, cast: false });
   grass(world, scatter(Q(700), 47, 120, (x, z) => { const d = trail.dist(x, z)[0]; return d > 1.3 && d < 6 && creek.dist(x, z)[0] > 2.2; }), { height: [0.25, 0.7], blades: 18, color: 0x9aae80, dry: 0.15, spread: 0.2, near: 40 });
   clumps(world, scatter(300, 48, 110, under), { tex: 'fern', color: 0x6a8a52, w: 0.6, h: 0.8, sway: 0.06 });
 
   /* rocks & deadwood */
   modelInstances(world, 'rock_moss_set_01', scatter(40, 51, 120, (x, z) => { const d = creek.dist(x, z)[0]; return d < 6 && trail.dist(x, z)[0] > 2; }), { scale: 0.9, sink: 0.3, moss: 0.8, tint: 0xa8a49a, collide: 'auto', minCollide: 0.6, onFail: () => rocks(world, scatter(20, 51, 120, (x, z) => creek.dist(x, z)[0] < 6), { mossy: 0.8 }) });
   modelInstances(world, 'rock_moss_set_02', scatter(30, 52, 130, (x, z) => away(x, z, 2.5, 3)), { scale: 0.8, sink: 0.28, moss: 0.7, tint: 0xa8a49a, collide: 'auto', minCollide: 0.6 });
-  modelInstances(world, 'boulder_01', scatter(7, 53, 90, (x, z) => creek.dist(x, z)[0] < 3.5), { scale: 1.3, sink: 0.35, moss: 0.85, tint: 0x8e8c84, collide: 'auto' });
-  modelInstances(world, 'dead_tree_trunk_02', scatter(6, 54, 100, (x, z) => away(x, z, 3, 3)), { scale: 1.4, sink: 0.2, moss: 0.8, tint: 0x9a9488, collide: 'log', tilt: 0.05 });
+  modelInstances(world, 'boulder_01', scatter(4, 53, 90, (x, z) => creek.dist(x, z)[0] < 3.5), { scale: 1.3, sink: 0.35, moss: 0.85, tint: 0x8e8c84, collide: 'auto' });
+  modelInstances(world, 'dead_tree_trunk_02', scatter(4, 54, 100, (x, z) => away(x, z, 3, 3)), { scale: 1.4, sink: 0.2, moss: 0.8, tint: 0x9a9488, collide: 'log', tilt: 0.05 });
   modelInstances(world, 'tree_stump_01', scatter(5, 55, 100, (x, z) => away(x, z, 3, 3)), { scale: 1.2, sink: 0.12, moss: 0.8, tint: 0x9a9488, collide: 'cyl' });
 
   /* weather */
@@ -230,7 +230,6 @@ function buildHearth(world, renderer) {
   world.collideBox(0, -0.05, 0, W + 2, 0.1, D + 2);
   const ceil = new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, D), plaster); ceil.position.y = Hh + 0.05; ceil.receiveShadow = true; S.add(ceil);
   for (let z = zB + 0.9; z < zF; z += 1.6) M.add(new THREE.BoxGeometry(W, 0.22, 0.18), mat4(0, Hh - 0.11, z), beamM);
-  M.add(new THREE.BoxGeometry(0.2, 0.26, D), mat4(0, Hh - 0.24, 0), beamM);
 
   /* walls with wainscot; right wall has a window opening */
   const win = { z0: -0.4, z1: 1.0, y0: 0.92, y1: 2.42 };
@@ -485,8 +484,8 @@ function dustMotesWarm(world, c, r) {
 }
 
 export const SCENES = [
-  { id: 'rainforest', name: '雨林', en: 'Rainforest', build: buildRainforest, tint: ['#56625a', '#2a3428', '#9ab088'] },
-  { id: 'hearth', name: '壁炉', en: 'Fireplace', build: buildHearth, tint: ['#120c08', '#3a2416', '#ff9a50'] },
+  { id: 'rainforest', name: '雨林', en: 'Rainforest', thumb: 'thumbs/rainforest.jpg', build: buildRainforest, tint: ['#56625a', '#2a3428', '#9ab088'] },
+  { id: 'hearth', name: '壁炉', en: 'Fireplace', thumb: 'thumbs/hearth.jpg', build: buildHearth, tint: ['#120c08', '#3a2416', '#ff9a50'] },
 ];
 
 export function buildScene(index, renderer) {

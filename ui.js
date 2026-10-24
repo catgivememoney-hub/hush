@@ -136,6 +136,7 @@ export class Menu {
     t.style.setProperty('--i', i);
     const cv = document.createElement('canvas'); cv.width = 320; cv.height = 200;
     paintThumb(cv, sc.id, sc.tint);
+    if (sc.thumb) { const im = new Image(); im.onload = () => cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); im.src = sc.thumb; }
     const img = this.el('div', 'thumb');
     img.appendChild(cv);
     t.appendChild(img);

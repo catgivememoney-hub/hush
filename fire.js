@@ -36,7 +36,7 @@ function flickerFn(seed = 0) {
 /* =========================================================
    Flame tongues — cylindrical billboards, noise-shaped
    ========================================================= */
-function flames(world, tongues, { intensity = 2.4 } = {}) {
+function flames(world, tongues, { intensity = 1.7 } = {}) {
   const base = new THREE.PlaneGeometry(1, 1, 1, 1); base.translate(0, 0.5, 0);
   const ig = new THREE.InstancedBufferGeometry();
   ig.index = base.index; ig.attributes.position = base.attributes.position; ig.attributes.uv = base.attributes.uv;
