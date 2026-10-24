@@ -128,7 +128,7 @@ export class Audio {
         g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.008 + Math.random() * 0.01, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
         o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.04);
       };
-      this.timers.push(setInterval(() => { if (Math.random() < 0.25) tap(); }, 140));
+      this.timers.push(setInterval(() => { if (Math.random() < 0.12) tap(); }, 160));
     } else if (kind === 'leafdrip') {
       // fat drops falling from the canopy onto big leaves and puddles, close and irregular
       const plop = () => {
@@ -310,7 +310,7 @@ export class Audio {
     const p = ctx.createPanner();
     p.panningModel = 'HRTF'; p.refDistance = 2; p.rolloffFactor = 0.9;
     p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z;
-    const g = ctx.createGain(); g.gain.value = 0.45; g.connect(p); p.connect(this.amb);
+    const g = ctx.createGain(); g.gain.value = 0.28; g.connect(p); p.connect(this.amb);
     const snap = (k, delay = 0) => {
       const t = ctx.currentTime + delay;
       const s = ctx.createBufferSource(); s.buffer = this.white;
