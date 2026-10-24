@@ -419,7 +419,7 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
     let n = 0;
     for (let tries = 0; n < N && tries < 2000; tries++) {
       const a = R() * 6.28, rr = Math.sqrt(R());
-      const x = Math.cos(a) * rr * width * 0.46, z = Math.sin(a) * rr * depth * 0.52;
+      const x = Math.cos(a) * rr * width * 0.42, z = Math.sin(a) * rr * depth * 0.4 - depth * 0.06;   // stay within the grate
       const sz = (0.012 + R() * 0.022) * (1 - rr * 0.35);
       if (placed.some((q) => Math.hypot(q[0] - x, q[1] - z) < (q[2] + sz) * 0.8)) continue;
       placed.push([x, z, sz]);
