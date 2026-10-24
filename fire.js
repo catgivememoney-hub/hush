@@ -247,7 +247,7 @@ export function ironMaterial(center, { repeat = [1, 1] } = {}) {
 /* =========================================================
    Charred log material: bark that blackens and glows in cracks near the heat
    ========================================================= */
-export function emberMaterial(base, { center, radius = 0.6, glow = 1, allChar = false } = {}) {
+export function emberMaterial(base, { center, radius = 0.6, glow = 1, allChar = false, crack = 1, core = 0.7, hue = 0 } = {}) {
   // mutate in place: the Poly Haven maps are swapped into this same material when they arrive
   const m = base;
   m.userData.ember = { uC: { value: center.clone() }, uR: { value: radius }, uGlow: { value: glow }, uAll: { value: allChar ? 1 : 0 } };
@@ -278,16 +278,16 @@ export function emberMaterial(base, { center, radius = 0.6, glow = 1, allChar = 
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           float eh2 = emberHeat();
-          float rid = 1.0 - abs(vn3(vEW * 22.0 + vec3(0.0, uTime * 0.03, 0.0)) * 2.0 - 1.0);
-          float rid2 = 1.0 - abs(vn3(vEW * 48.0 + 7.0) * 2.0 - 1.0);
+          float rid = 1.0 - abs(vn3(vEW * ${(22 * crack).toFixed(1)} + vec3(0.0, uTime * 0.03, 0.0)) * 2.0 - 1.0);
+          float rid2 = 1.0 - abs(vn3(vEW * ${(48 * crack).toFixed(1)} + 7.0) * 2.0 - 1.0);
           float crack = pow(rid, 9.0) * 0.8 + pow(rid2, 14.0) * 0.5;
           float breathe = 0.65 + 0.35 * fbm3(vEW * 3.0 + vec3(0.0, 0.0, uTime * 0.35));
           float core = smoothstep(0.55, 1.0, eh2);
-          vec3 ec = fireRamp(0.25 + breathe * 0.35 + core * 0.2);
-          totalEmissiveRadiance += ec * (crack * smoothstep(0.25, 0.85, eh2) * 5.0 + core * core * 0.7 * breathe) * uGlow;
+          vec3 ec = fireRamp(${(0.25 - hue).toFixed(2)} + breathe * 0.35 + core * 0.2);
+          totalEmissiveRadiance += ec * (crack * smoothstep(0.25, 0.85, eh2) * 5.0 + core * core * ${core.toFixed(2)} * breathe) * uGlow;
         }`);
   };
-  m.customProgramCacheKey = () => 'ember' + (allChar ? 1 : 0);
+  m.customProgramCacheKey = () => `ember${allChar ? 1 : 0}_${crack}_${core}_${hue}`;
   return m;
 }
 
@@ -411,7 +411,7 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
     g.computeVertexNormals();
     return g;
   });
-  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x0b0a0a, roughness: 0.97 }), { center: c.clone().add(new THREE.Vector3(0, 0.04, 0)), radius: 0.5, glow: 1.15 });
+  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x0b0a0a, roughness: 0.97 }), { center: c.clone().add(new THREE.Vector3(0, 0.04, 0)), radius: 0.5, glow: 1.0, crack: 3.2, core: 0.12, hue: 0.1 });
   const dm = new THREE.Object3D();
   const placed = [];
   coalVariants.forEach((geo, v) => {
