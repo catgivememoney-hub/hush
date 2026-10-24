@@ -411,7 +411,7 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
     g.computeVertexNormals();
     return g;
   });
-  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x1c1a19, roughness: 0.95 }), { center: c.clone().add(new THREE.Vector3(0, 0.04, 0)), radius: 0.36, glow: 0.95 });
+  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x0b0a0a, roughness: 0.97 }), { center: c.clone().add(new THREE.Vector3(0, 0.04, 0)), radius: 0.5, glow: 1.15 });
   const dm = new THREE.Object3D();
   const placed = [];
   coalVariants.forEach((geo, v) => {
