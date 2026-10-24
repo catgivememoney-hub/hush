@@ -484,8 +484,9 @@ function buildHearth(world, renderer) {
 
   world.spawn = { pos: new THREE.Vector3(0.15, 0.2, 0.9), yaw: -0.03, pitch: -0.12 };
   world.surface = (x, z) => (z < front + 0.6 && Math.abs(x) < bw / 2 + 0.15 ? 'stone' : 'wood');
-  world.ambience = { windowrain: 0.5 };
-  world.streams = [{ url: SOUNDS.fire.url, gain: 1.0, pos: fire.light.position.clone(), ref: 2.2, rolloff: 0.7, fallback: null }];
+  world.ambience = { windowrain: 0.16 };
+  // the recorded fire is the star of this room: loud, and it carries to every corner
+  world.streams = [{ url: SOUNDS.fire.url, gain: 1.6, pos: fire.light.position.clone(), ref: 3.5, rolloff: 0.35, fallback: null }];
   world.tweak = { exposure: 1.25, bloom: 0.75 };
   world.indoor = true;
 }

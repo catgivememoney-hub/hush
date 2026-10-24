@@ -117,9 +117,10 @@ export class Audio {
       this.timers.push(setInterval(chirp, 380));
     } else if (kind === 'windowrain') {
       // rain heard through glass: muffled patter plus the odd drop on the pane
-      const n1 = this.noise(), lp = this.filt('lowpass', 1500), hp = this.filt('highpass', 180), g1 = ctx.createGain(); g1.gain.value = 0.3;
+      // brown noise, heavily muffled: a soft wash behind the glass, never a hiss
+      const n1 = this.noise(this.brown), lp = this.filt('lowpass', 520, 0.5), hp = this.filt('highpass', 90), g1 = ctx.createGain(); g1.gain.value = 0.22;
       chainTo(n1, hp, lp, g1, out);
-      nodes.push(this.lfo(0.09, 0.06, g1.gain, 0.3));
+      nodes.push(this.lfo(0.07, 0.04, g1.gain, 0.22));
       const tap = () => {
         if (!this.ctx) return;
         const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
@@ -127,7 +128,7 @@ export class Audio {
         g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.008 + Math.random() * 0.01, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
         o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.04);
       };
-      this.timers.push(setInterval(() => { if (Math.random() < 0.7) tap(); }, 90));
+      this.timers.push(setInterval(() => { if (Math.random() < 0.25) tap(); }, 140));
     } else if (kind === 'leafdrip') {
       // fat drops falling from the canopy onto big leaves and puddles, close and irregular
       const plop = () => {
@@ -309,7 +310,7 @@ export class Audio {
     const p = ctx.createPanner();
     p.panningModel = 'HRTF'; p.refDistance = 2; p.rolloffFactor = 0.9;
     p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z;
-    const g = ctx.createGain(); g.gain.value = 0.9; g.connect(p); p.connect(this.amb);
+    const g = ctx.createGain(); g.gain.value = 0.45; g.connect(p); p.connect(this.amb);
     const snap = (k, delay = 0) => {
       const t = ctx.currentTime + delay;
       const s = ctx.createBufferSource(); s.buffer = this.white;
