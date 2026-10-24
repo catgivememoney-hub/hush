@@ -75,7 +75,8 @@ function buildRainforest(world) {
     const cd = creek.dist(x, z)[0], td = trail.dist(x, z)[0];
     const hills = (fbm(x * 0.018 + 20, z * 0.018 + 7, 64, 4, 41) - 0.5) * 9 + smooth(10, 45, cd) * 3.5;
     const bumps = (fbm(x * 0.2, z * 0.2, 64, 3, 42) - 0.5) * 0.45;
-    let h = hills + bumps;
+    // the valley rises on every side so no horizon ever shows through the fog
+    let h = hills + bumps + smooth(62, 104, Math.hypot(x, z)) * 16;
     // creek bed and soft banks
     const bed = -0.85 + (fbm(x * 0.3, z * 0.3, 64, 2, 43) - 0.5) * 0.15;
     h = mix(bed, h, smooth(2.0, 7.5, cd));
@@ -106,7 +107,7 @@ function buildRainforest(world) {
     const g = new THREE.CircleGeometry(0.35 + R() * 0.7, 28); g.rotateX(-Math.PI / 2); g.scale(1, 1, 0.45 + R() * 0.5);
     const m = new THREE.Mesh(g, pudM); m.position.set(x, H(x, z) + 0.05, z); m.rotation.y = Math.atan2(tg.x, tg.z) + (R() - 0.5) * 0.4; m.receiveShadow = true; S.add(m);
   } }
-  water(world, { size: 240, y: WATER, color: 0x141c14, sun: new THREE.Vector3(0.25, 1, 0.35), sunColor: 0x3a4238, distortion: 1.4 });
+  water(world, { size: 200, y: WATER, color: 0x141c14, sun: new THREE.Vector3(0.25, 1, 0.35), sunColor: 0x3a4238, distortion: 1.4 });
 
   /* giants: emergent canopy trees with buttresses, moss and hanging strands */
   const bark = pbr('bark', [1, 1.4], { color: 0x9a9284, normalScale: new THREE.Vector2(1.8, 1.8) }, 'bark_brown_02');
@@ -146,6 +147,9 @@ function buildRainforest(world) {
   palms(world, scatter(34, 31, 120, (x, z) => away(x, z, 3.2, 4)), { height: [5, 10] });
   tropicalPlants(world, scatter(70, 32, 110, (x, z) => away(x, z, 2.4, 2.6)), { kind: 0, size: [0.8, 1.5], color: 0xe8f0dc });
   tropicalPlants(world, scatter(40, 33, 120, (x, z) => away(x, z, 3.5, 4)), { kind: 1, size: [1.4, 2.4], leaves: [5, 8], color: 0xe0ecd0 });
+  // a lush border right along the trail, so you walk between leaves
+  tropicalPlants(world, scatter(Q(110), 35, 140, (x, z) => { const d = trail.dist(x, z)[0]; return d > 1.7 && d < 5.5 && creek.dist(x, z)[0] > 2.4; }), { kind: 0, size: [0.7, 1.4], color: 0xeef4e2 });
+  tropicalPlants(world, scatter(Q(50), 36, 140, (x, z) => { const d = trail.dist(x, z)[0]; return d > 2.6 && d < 7 && creek.dist(x, z)[0] > 3; }), { kind: 1, size: [1.3, 2.2], leaves: [5, 8], color: 0xe4eed4 });
   // creekside clumps right at the water's edge
   tropicalPlants(world, scatter(30, 34, 110, (x, z) => { const d = creek.dist(x, z)[0]; return d > 2.5 && d < 5 && trail.dist(x, z)[0] > 2; }), { kind: 0, size: [0.6, 1.1], color: 0xf0f4e0 });
 
@@ -168,7 +172,7 @@ function buildRainforest(world) {
   modelInstances(world, 'tree_stump_01', scatter(5, 55, 100, (x, z) => away(x, z, 3, 3)), { scale: 1.2, sink: 0.12, moss: 0.8, tint: 0x9a9488, collide: 'cyl' });
 
   /* weather */
-  rain(world, { count: Q(16000), opacity: 0.3, speed: 14, box: 26, color: 0xb4bcb8, wind: [0.6, 0.2] });
+  rain(world, { count: Q(20000), opacity: 0.4, speed: 14, box: 26, color: 0xbcc4c0, wind: [0.6, 0.2] });
   splashes(world, (x, z) => Math.max(H(x, z), WATER), { count: 1400, box: 20 });
   mist(world, { count: 60, area: 130, y: 0.5, size: [8, 16], color: 0x8a968c, opacity: 0.1 });
   mist(world, { count: 40, area: 150, y: 9, size: [22, 38], color: 0x7a867c, opacity: 0.08, heightVar: 10 });
