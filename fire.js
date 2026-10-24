@@ -3,7 +3,9 @@
 // Everything is computed from noise every frame, so nothing ever visibly repeats
 // and it costs zero bytes of video.
 import * as THREE from 'three';
-import { U, glowSprite, rng, pbr } from './world.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { U, glowSprite, rng, pbr, fbm, pbrSet, taperedTube } from './world.js';
 import { card } from './textures.js';
 
 /* ---------- shared GLSL ---------- */
@@ -108,10 +110,10 @@ function embers(world, center, { count = 140, spread = [0.55, 0.22], rise = [0.8
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
     uniforms: {
       uTime: U.time, uC: { value: center.clone() }, uSpread: { value: new THREE.Vector2(...spread) }, uRise: { value: new THREE.Vector2(...rise) },
-      uPx: { value: 1 }, uBurstT: { value: -99 }, uBurstP: { value: center.clone() },
+      uPx: { value: 1 },
     },
     vertexShader: /* glsl */`
-      attribute vec4 aSeed; uniform float uTime, uPx, uBurstT; uniform vec3 uC, uBurstP; uniform vec2 uSpread, uRise;
+      attribute vec4 aSeed; uniform float uTime, uPx; uniform vec3 uC; uniform vec2 uSpread, uRise;
       varying float vA, vHeat;
       float hh(float n){ return fract(sin(n) * 43758.5453); }
       void main(){
@@ -120,25 +122,16 @@ function embers(world, center, { count = 140, spread = [0.55, 0.22], rise = [0.8
         float cyc = floor(ph), f = fract(ph);
         float r1 = hh(cyc * 12.9 + aSeed.z * 91.0), r2 = hh(cyc * 78.2 + aSeed.w * 37.0), r3 = hh(cyc * 3.7 + aSeed.x * 17.0);
         // only some cycles produce a visible ember: sparse and irregular
-        float alive = step(0.55, r3);
+        float alive = step(0.72, r3);
         vec3 p = uC + vec3((r1 - 0.5) * uSpread.x, 0.0, (r2 - 0.5) * uSpread.y);
         float h = mix(uRise.x, uRise.y, r3) * f;
         p.y += h;
         p.x += sin(f * 6.0 + r1 * 20.0 + uTime * 1.3) * 0.08 * f + (r2 - 0.5) * 0.25 * f * f;
         p.z += cos(f * 5.0 + r2 * 20.0 + uTime) * 0.05 * f;
-        // spark burst from a popping log
-        float bt = uTime - uBurstT;
-        float inBurst = step(aSeed.w, 0.28) * step(0.0, bt) * step(bt, 1.4);
-        if (inBurst > 0.5) {
-          float bf = bt / 1.4;
-          vec3 dir = normalize(vec3(aSeed.x - 0.5, 0.9 + aSeed.y, aSeed.z - 0.5) + vec3(0.0, 0.0, 0.35));
-          p = uBurstP + dir * (1.6 + aSeed.y * 1.8) * bt - vec3(0.0, 1.6 * bt * bt, 0.0);
-          f = bf; alive = 1.0;
-        }
-        vA = alive * smoothstep(0.0, 0.06, f) * (1.0 - f) * (0.6 + 0.4 * sin(uTime * 30.0 + aSeed.x * 60.0));
+        vA = alive * smoothstep(0.0, 0.08, f) * pow(1.0 - f, 2.0) * (0.55 + 0.45 * sin(uTime * (9.0 + aSeed.y * 14.0) + aSeed.x * 60.0));
         vHeat = 1.0 - f;
         vec4 mv = viewMatrix * vec4(p, 1.0);
-        gl_PointSize = uPx * (2.2 + aSeed.z * 2.8) * (2.0 / max(0.3, -mv.z));
+        gl_PointSize = uPx * (1.1 + aSeed.z * 1.3) * (2.0 / max(0.5, -mv.z));
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */`
@@ -146,8 +139,8 @@ function embers(world, center, { count = 140, spread = [0.55, 0.22], rise = [0.8
       void main(){
         vec2 c = gl_PointCoord - 0.5; float d = dot(c, c);
         float a = smoothstep(0.25, 0.0, d) * vA;
-        vec3 col = mix(vec3(1.0, 0.18, 0.02), vec3(1.0, 0.7, 0.3), vHeat);
-        gl_FragColor = vec4(col * a * 5.0, a);
+        vec3 col = mix(vec3(0.9, 0.12, 0.01), vec3(1.0, 0.55, 0.16), vHeat * vHeat);
+        gl_FragColor = vec4(col * a * 2.4, a);
       }`,
   });
   const p = new THREE.Points(g, m);
@@ -155,6 +148,100 @@ function embers(world, center, { count = 140, spread = [0.55, 0.22], rise = [0.8
   world.scene.add(p);
   world.onUpdate(() => { m.uniforms.uPx.value = world.renderer.getPixelRatio(); });
   return p;
+}
+
+/* =========================================================
+   Sparks from a popping log: short motion-blurred streaks (head + tail a few ms
+   behind on the same path), each with its own life, drag and flutter
+   ========================================================= */
+function sparks(world, { count = 26 } = {}) {
+  const pos = new Float32Array(count * 6), aS = new Float32Array(count * 8), aEnd = new Float32Array(count * 2);
+  const R = rng(17);
+  for (let i = 0; i < count; i++) { const sd = [R(), R(), R(), R()]; aS.set([...sd, ...sd], i * 8); aEnd.set([0, 1], i * 2); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(aS, 4));
+  g.setAttribute('aEnd', new THREE.BufferAttribute(aEnd, 1));
+  const m = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { uTime: U.time, uT0: { value: -99 }, uP: { value: new THREE.Vector3() }, uN: { value: 0 } },
+    vertexShader: /* glsl */`
+      attribute vec4 aSeed; attribute float aEnd; uniform float uTime, uT0, uN; uniform vec3 uP;
+      varying float vA, vHeat;
+      vec3 path(float t){
+        // launched mostly upward and a little toward the room, slowed by air drag, lifted by the draught
+        vec3 v0 = vec3((aSeed.x - 0.5) * 1.1, 1.1 + aSeed.y * 1.6, (aSeed.z - 0.3) * 0.8);
+        float k = 2.6 + aSeed.w * 2.0;                     // drag
+        vec3 p = v0 * (1.0 - exp(-k * t)) / k;
+        p.y += 0.35 * t * t - 0.0;                         // updraught beats gravity for tiny sparks
+        p.x += sin(t * (9.0 + aSeed.y * 8.0) + aSeed.x * 20.0) * 0.025 * t;
+        p.z += cos(t * (7.0 + aSeed.z * 6.0) + aSeed.w * 20.0) * 0.02 * t;
+        return uP + p;
+      }
+      void main(){
+        float life = 0.35 + aSeed.w * 0.8;
+        float t = uTime - uT0 - aSeed.x * 0.06;
+        float on = step(0.0, t) * step(t, life) * step(aSeed.y, uN);
+        float tt = max(t - aEnd * 0.022, 0.0);
+        vec3 p = path(tt);
+        float f = clamp(t / life, 0.0, 1.0);
+        vA = on * (1.0 - f) * (1.0 - f) * (1.0 - aEnd * 0.85) * (0.7 + 0.3 * sin(uTime * 60.0 + aSeed.z * 30.0));
+        vHeat = 1.0 - f;
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      varying float vA, vHeat;
+      void main(){ vec3 c = mix(vec3(1.0, 0.2, 0.02), vec3(1.0, 0.72, 0.35), vHeat); gl_FragColor = vec4(c * vA * 3.0, vA); }`,
+  });
+  const l = new THREE.LineSegments(g, m); l.frustumCulled = false; l.renderOrder = 9;
+  world.scene.add(l);
+  return {
+    fire(p, k) { m.uniforms.uT0.value = U.time.value; m.uniforms.uP.value.copy(p); m.uniforms.uN.value = k < 0.6 ? 0.06 + Math.random() * 0.08 : 0.4 + Math.random() * 0.3; },
+  };
+}
+
+/* =========================================================
+   Cast-iron material: pitted, sooty, a little rust where it's cool,
+   heat-blued/dull red where it sits in the coals
+   ========================================================= */
+let ironSet = null;
+function ironTex() {
+  if (ironSet) return ironSet;
+  ironSet = pbrSet(256, (u, v) => {
+    const big = fbm(u * 4, v * 4, 4, 4, 401), fine = fbm(u * 32, v * 32, 32, 3, 402);
+    const pits = Math.pow(Math.max(0, fbm(u * 24, v * 24, 24, 2, 403) - 0.62) * 3, 2);
+    const rust = Math.max(0, big - 0.6) * 2.2 * (0.6 + fine * 0.6);
+    const soot = fbm(u * 8, v * 8, 8, 3, 404);
+    const b = 0.055 + fine * 0.035 - pits * 0.03 + soot * 0.02;
+    return {
+      h: fine * 0.5 - pits * 0.8 + big * 0.2,
+      r: b + rust * 0.18, g: b * 0.97 + rust * 0.08, b: b * 0.95 + rust * 0.03,
+      rough: 0.62 + fine * 0.2 + rust * 0.25 + pits * 0.1,
+    };
+  }, 3.2);
+  return ironSet;
+}
+export function ironMaterial(center, { repeat = [1, 1] } = {}) {
+  const T = ironTex();
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.7, roughness: 1, envMapIntensity: 0.6 });
+  for (const k of ['map', 'normalMap', 'roughnessMap']) { const t = T[k].clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); m[k] = t; }
+  m.normalScale = new THREE.Vector2(1.2, 1.2);
+  const uC = { value: center.clone() };
+  m.onBeforeCompile = (s) => {
+    s.uniforms.uC = uC; s.uniforms.uTime = U.time;
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vIW;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vIW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vIW; uniform vec3 uC; uniform float uTime;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          vec3 d = vIW - uC;
+          float hot = (1.0 - smoothstep(0.0, 0.32, length(d * vec3(1.0, 2.2, 1.6)))) * smoothstep(0.12, -0.04, d.y);
+          float pulse = 0.85 + 0.15 * sin(uTime * 0.7 + vIW.x * 9.0);
+          totalEmissiveRadiance += vec3(0.55, 0.09, 0.01) * hot * hot * 0.9 * pulse;
+        }`);
+  };
+  m.customProgramCacheKey = () => 'castiron';
+  return m;
 }
 
 /* =========================================================
@@ -261,50 +348,88 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
   const logMat = emberMaterial(bark, { center, radius: 0.55 });
   const capMat = emberMaterial(new THREE.MeshStandardMaterial({ map: endGrain(), roughness: 0.9 }), { center, radius: 0.55 });
 
-  /* iron grate */
-  const iron = new THREE.MeshStandardMaterial({ color: 0x1b1a19, roughness: 0.55, metalness: 0.85 });
+  /* cast-iron grate: front-to-back bars, a curved front basket, turned andirons */
+  const iron = ironMaterial(c.clone().add(new THREE.Vector3(0, 0.04, 0)), { repeat: [2, 2] });
   const grate = new THREE.Group();
-  for (let i = 0; i < 7; i++) {
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, depth + 0.08, 8), iron);
-    bar.rotation.x = Math.PI / 2; bar.position.set(-width / 2 + 0.05 + i * (width - 0.1) / 6, 0.075, 0); grate.add(bar);
+  const addM = (g, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(g, iron); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); grate.add(m); return m; };
+  const barG = new RoundedBoxGeometry(0.02, 0.022, depth + 0.06, 2, 0.006);
+  for (let i = 0; i < 8; i++) addM(barG, -width / 2 + 0.04 + i * (width - 0.08) / 7, 0.07, 0);
+  // side rails
+  for (const xx of [-width / 2, width / 2]) addM(new RoundedBoxGeometry(0.024, 0.03, depth + 0.08, 2, 0.008), xx, 0.07, 0);
+  // front basket: three bowed bars rising in front of the logs, and a back rail
+  for (let k = 0; k < 3; k++) {
+    const y = 0.085 + k * 0.045, bow = 0.018 + k * 0.006;
+    const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new THREE.Vector3((t - 0.5) * width, y, depth / 2 + 0.02 + Math.sin(t * Math.PI) * bow)); }
+    grate.add(new THREE.Mesh(taperedTube(pts, 8, () => 0.0085, 1, 6, 6), iron));
   }
-  for (const zz of [-depth / 2, depth / 2]) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(width, 0.02, 0.022), iron); rail.position.set(0, 0.075, zz); grate.add(rail);
-    for (const xx of [-width / 2 + 0.03, width / 2 - 0.03]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.075, 8), iron); leg.position.set(xx, 0.037, zz); grate.add(leg); }
-  }
-  // andiron fronts: upright posts with a ball finial
-  for (const xx of [-width / 2 + 0.02, width / 2 - 0.02]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.28, 10), iron); post.position.set(xx, 0.14, depth / 2 + 0.02); grate.add(post);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 10), iron); ball.position.set(xx, 0.3, depth / 2 + 0.02); grate.add(ball);
+  for (let i = 0; i < 8; i++) { const x = -width / 2 + 0.04 + i * (width - 0.08) / 7; addM(new THREE.CylinderGeometry(0.007, 0.007, 0.1, 8), x, 0.13, depth / 2 + 0.03 + Math.sin((x / width + 0.5) * Math.PI) * 0.024); }
+  addM(new RoundedBoxGeometry(width, 0.022, 0.024, 2, 0.007), 0, 0.075, -depth / 2 - 0.02);
+  // legs: short splayed cast feet
+  const footG = new THREE.LatheGeometry([new THREE.Vector2(0.0, 0), new THREE.Vector2(0.02, 0), new THREE.Vector2(0.022, 0.008), new THREE.Vector2(0.011, 0.02), new THREE.Vector2(0.01, 0.06), new THREE.Vector2(0.0, 0.062)], 14);
+  for (const xx of [-width / 2 + 0.01, width / 2 - 0.01]) for (const zz of [-depth / 2, depth / 2 - 0.01]) addM(footG, xx, 0.0, zz);
+  // andirons: turned posts with a collar and ball finial, on arched feet
+  const andG = new THREE.LatheGeometry([
+    [0, 0], [0.034, 0], [0.036, 0.012], [0.02, 0.022], [0.016, 0.05], [0.019, 0.12], [0.014, 0.19], [0.024, 0.205], [0.024, 0.215], [0.012, 0.23], [0.012, 0.25], [0.026, 0.27], [0.03, 0.295], [0.024, 0.318], [0.008, 0.33], [0, 0.332],
+  ].map(([r, y]) => new THREE.Vector2(r, y)), 24);
+  for (const xx of [-width / 2 + 0.03, width / 2 - 0.03]) {
+    addM(andG, xx, 0, depth / 2 + 0.05);
+    addM(new RoundedBoxGeometry(0.03, 0.02, depth * 0.9, 2, 0.007), xx, 0.035, 0.0);   // log bar running back
   }
   grate.position.copy(c);
   grate.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   S.add(grate);
 
-  /* ash + coal bed */
-  const ashC = document.createElement('canvas'); ashC.width = ashC.height = 128;
+  /* ash bed: soft, smooth drifts (no spiky noise) */
+  const ashC = document.createElement('canvas'); ashC.width = ashC.height = 256;
   const ag = ashC.getContext('2d');
-  for (let i = 0; i < 2400; i++) { const v = 30 + R() * 70; ag.fillStyle = `rgb(${v},${v * 0.96},${v * 0.92})`; ag.fillRect(R() * 128, R() * 128, 1 + R() * 2, 1 + R() * 2); }
-  const ashT = new THREE.CanvasTexture(ashC); ashT.colorSpace = THREE.SRGBColorSpace; ashT.wrapS = ashT.wrapT = THREE.RepeatWrapping; ashT.repeat.set(3, 2);
-  const ashMat = emberMaterial(new THREE.MeshStandardMaterial({ map: ashT, roughness: 1, color: 0x8a8580 }), { center: c.clone().add(new THREE.Vector3(0, 0.05, 0)), radius: 0.45, glow: 0.5 });
-  const ashGeo = new THREE.PlaneGeometry(width + 0.3, depth + 0.25, 24, 12); ashGeo.rotateX(-Math.PI / 2);
+  ag.fillStyle = '#4a4744'; ag.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5000; i++) { const v = 40 + R() * 80; ag.fillStyle = `rgba(${v},${v * 0.97},${v * 0.93},${0.25 + R() * 0.4})`; ag.beginPath(); ag.arc(R() * 256, R() * 256, 0.4 + R() * 1.3, 0, 7); ag.fill(); }
+  for (let i = 0; i < 260; i++) { ag.fillStyle = `rgba(14,12,11,${0.4 + R() * 0.5})`; ag.beginPath(); ag.arc(R() * 256, R() * 256, 0.6 + R() * 2.4, 0, 7); ag.fill(); }
+  const ashT = new THREE.CanvasTexture(ashC); ashT.colorSpace = THREE.SRGBColorSpace; ashT.wrapS = ashT.wrapT = THREE.RepeatWrapping; ashT.repeat.set(2, 1.2); ashT.anisotropy = 8;
+  const ashMat = emberMaterial(new THREE.MeshStandardMaterial({ map: ashT, roughness: 1, color: 0x9a9690 }), { center: c.clone().add(new THREE.Vector3(0, 0.03, 0)), radius: 0.34, glow: 0.35 });
+  const ashGeo = new THREE.PlaneGeometry(width + 0.3, depth + 0.25, 48, 24); ashGeo.rotateX(-Math.PI / 2);
   const ap = ashGeo.attributes.position;
-  for (let i = 0; i < ap.count; i++) { const x = ap.getX(i), z = ap.getZ(i); ap.setY(i, 0.012 + Math.max(0, 0.035 * (1 - Math.hypot(x / (width * 0.6), z / (depth * 0.7)))) + R() * 0.006); }
+  for (let i = 0; i < ap.count; i++) {
+    const x = ap.getX(i), z = ap.getZ(i);
+    const mound = Math.max(0, 1 - Math.hypot(x / (width * 0.62), z / (depth * 0.72)));
+    ap.setY(i, 0.008 + mound * mound * (3 - 2 * mound) * 0.03 + (fbm(x * 9 + 4, z * 9 + 2, 64, 3, 405) - 0.5) * 0.008);
+  }
   ashGeo.computeVertexNormals();
   const ash = new THREE.Mesh(ashGeo, ashMat); ash.position.copy(c); ash.receiveShadow = true; S.add(ash);
-  // coals: small faceted lumps, glowing through
-  const coalGeo = new THREE.IcosahedronGeometry(0.028, 1);
-  { const p = coalGeo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 0.75 + R() * 0.5; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.7, p.getZ(i) * k); } coalGeo.computeVertexNormals(); }
-  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x222020, roughness: 0.9 }), { center: c.clone().add(new THREE.Vector3(0, 0.06, 0)), radius: 0.42, glow: 1.4 });
-  const NC = 90, coals = new THREE.InstancedMesh(coalGeo, coalMat, NC);
+
+  /* coals: rounded, lumpy chunks (welded vertices + smooth noise, so no cracked facets) */
+  const coalVariants = [0, 1, 2].map((v) => {
+    let g = new THREE.IcosahedronGeometry(1, 3);
+    g.deleteAttribute('normal'); g.deleteAttribute('uv');
+    g = mergeVertices(g);
+    const p = g.attributes.position, ph = [R() * 6, R() * 6, R() * 6, R() * 6];
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const k = 1 + Math.sin(x * 2.3 + ph[0]) * 0.16 + Math.sin(y * 3.1 + z * 1.7 + ph[1]) * 0.12 + Math.sin(z * 4.7 + x * 2.2 + ph[2]) * 0.07 + Math.sin((x + y + z) * 7.1 + ph[3]) * 0.03;
+      p.setXYZ(i, x * k, y * k * (0.55 + v * 0.08), z * k * (0.85 + v * 0.1));
+    }
+    g.computeVertexNormals();
+    return g;
+  });
+  const coalMat = emberMaterial(new THREE.MeshStandardMaterial({ color: 0x1c1a19, roughness: 0.95 }), { center: c.clone().add(new THREE.Vector3(0, 0.04, 0)), radius: 0.36, glow: 0.95 });
   const dm = new THREE.Object3D();
-  for (let i = 0; i < NC; i++) {
-    const a = R() * 6.28, rr = Math.sqrt(R());
-    dm.position.set(c.x + Math.cos(a) * rr * width * 0.48, c.y + 0.03 + R() * 0.02 + (i < 30 ? 0.05 : 0), c.z + Math.sin(a) * rr * depth * 0.55);
-    dm.rotation.set(R() * 6, R() * 6, R() * 6); dm.scale.setScalar(0.6 + R() * 0.9); dm.updateMatrix();
-    coals.setMatrixAt(i, dm.matrix);
-  }
-  coals.castShadow = true; coals.receiveShadow = true; S.add(coals);
+  const placed = [];
+  coalVariants.forEach((geo, v) => {
+    const N = 60, im = new THREE.InstancedMesh(geo, coalMat, N);
+    let n = 0;
+    for (let tries = 0; n < N && tries < 2000; tries++) {
+      const a = R() * 6.28, rr = Math.sqrt(R());
+      const x = Math.cos(a) * rr * width * 0.46, z = Math.sin(a) * rr * depth * 0.52;
+      const sz = (0.012 + R() * 0.022) * (1 - rr * 0.35);
+      if (placed.some((q) => Math.hypot(q[0] - x, q[1] - z) < (q[2] + sz) * 0.8)) continue;
+      placed.push([x, z, sz]);
+      const mound = Math.max(0, 1 - Math.hypot(x / (width * 0.62), z / (depth * 0.72)));
+      dm.position.set(c.x + x, c.y + 0.006 + mound * mound * (3 - 2 * mound) * 0.03 + sz * 0.3, c.z + z);
+      dm.rotation.set((R() - 0.5) * 0.6, R() * 6.28, (R() - 0.5) * 0.6); dm.scale.setScalar(sz); dm.updateMatrix();
+      im.setMatrixAt(n++, dm.matrix);
+    }
+    im.count = n; im.castShadow = true; im.receiveShadow = true; S.add(im);
+  });
 
   /* logs: two base logs on the grate, one crossing on top, a split piece */
   const logs = [
@@ -333,6 +458,7 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
   tongues.push({ x: c.x + 0.15, y: c.y + 0.06, z: c.z - 0.04, seed: 7.7, w: 0.46, h: 0.18, k: 0.45 });
   const fl = flames(world, tongues);
   const em = embers(world, c.clone().add(new THREE.Vector3(0, 0.25, 0)), { spread: [width * 0.7, depth * 0.6] });
+  const sp = sparks(world);
 
   /* light: one shadow-caster plus a soft low fill, both flickering independently */
   // inside the firebox: modest, so the brick glows orange instead of clipping to white
@@ -371,9 +497,7 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
     /** a log pops: light spike + spark burst. k 0..1 */
     pop(k = 1) {
       spike = Math.min(1.5, spike + k);
-      const u = em.material.uniforms;
-      u.uBurstT.value = U.time.value;
-      u.uBurstP.value.set(c.x + (R() - 0.5) * width * 0.6, c.y + 0.22 + R() * 0.08, c.z + (R() - 0.3) * depth * 0.4);
+      sp.fire(new THREE.Vector3(c.x + (R() - 0.5) * width * 0.6, c.y + 0.2 + R() * 0.1, c.z + (R() - 0.3) * depth * 0.4), k);
     },
   };
 }
