@@ -131,6 +131,11 @@ function buildRainforest(world) {
   canopy(world, scatter(Q(420), 24, 170, (x, z, R) => creek.dist(x, z)[0] > 5 || R() < 0.25), { y: [15, 27], size: [5, 9] });
   canopy(world, scatter(Q(160), 25, 140, (x, z) => creek.dist(x, z)[0] > 3), { y: [9, 14], size: [3.5, 6], color: 0x52683e });
 
+  // the valley walls: a cheap ring of palms and leaf masses so the misty slopes read as forest
+  const ring = (n, seed, r0, r1) => { const R = rng(seed), out = []; for (let i = 0; i < n; i++) { const a = R() * 6.283, r = r0 + R() * (r1 - r0); out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s: 0.8 + R() * 0.5, ry: R() * 6 }); } return out; };
+  palms(world, ring(Q(60), 26, 62, 92), { height: [6, 12] });
+  canopy(world, ring(Q(260), 27, 60, 98), { y: [3, 16], size: [6, 11], color: 0x4e6438 });
+
   /* lianas between neighbouring giants, and aerial roots dropping from the canopy */
   const anchors = [];
   for (let i = 0; i < giants.length; i++) {
