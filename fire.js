@@ -18,7 +18,7 @@ const NOISE = /* glsl */`
   vec3 fireRamp(float h){
     vec3 c = mix(vec3(0.25, 0.015, 0.0), vec3(1.0, 0.22, 0.02), smoothstep(0.0, 0.35, h));
     c = mix(c, vec3(1.0, 0.55, 0.12), smoothstep(0.3, 0.65, h));
-    c = mix(c, vec3(1.0, 0.86, 0.55), smoothstep(0.62, 0.95, h));
+    c = mix(c, vec3(1.0, 0.8, 0.45), smoothstep(0.72, 1.0, h));
     return c;
   }
 `;
@@ -36,7 +36,7 @@ function flickerFn(seed = 0) {
 /* =========================================================
    Flame tongues — cylindrical billboards, noise-shaped
    ========================================================= */
-function flames(world, tongues, { intensity = 1.7 } = {}) {
+function flames(world, tongues, { intensity = 1.35 } = {}) {
   const base = new THREE.PlaneGeometry(1, 1, 1, 1); base.translate(0, 0.5, 0);
   const ig = new THREE.InstancedBufferGeometry();
   ig.index = base.index; ig.attributes.position = base.attributes.position; ig.attributes.uv = base.attributes.uv;
@@ -68,20 +68,21 @@ function flames(world, tongues, { intensity = 1.7 } = {}) {
       void main(){
         float t = uTime;
         float x = vUv.x - 0.5, y = vUv.y;
-        // domain-warped noise rising upward
-        vec3 q = vec3(x * 2.6, y * 1.9 - t * 1.7, t * 0.45 + vSeed * 13.0);
-        float w = fbm3(q * 0.8 + vec3(0.0, -t * 0.4, 0.0));
-        float n = fbm3(q + vec3(w * 1.4, w * 0.6, 0.0));
-        float n2 = vn3(vec3(x * 7.0, y * 6.0 - t * 4.2, t + vSeed * 5.0));
-        float hw = mix(0.46, 0.05, pow(y, 0.75));
-        float d = abs(x + (n - 0.5) * 0.28 * y) / hw;
-        float heat = (1.0 - d) * 1.25 - y * 0.95 + (n - 0.5) * 1.1 + (n2 - 0.5) * 0.3;
-        heat *= smoothstep(0.0, 0.07, y) * smoothstep(1.0, 0.7, y);
-        heat = clamp(heat, 0.0, 1.0);
-        float a = smoothstep(0.04, 0.42, heat);
-        // soft blue-ish base where combustion is cleanest
-        vec3 col = fireRamp(heat * 0.95 + 0.05) ;
-        col = mix(col, col * vec3(0.55, 0.6, 1.25), smoothstep(0.12, 0.0, y) * 0.6);
+        // rising turbulence, faster and finer higher up
+        float n1 = fbm3(vec3(x * 3.0, y * 2.2 - t * 1.9, t * 0.4 + vSeed * 13.0));
+        float n2 = fbm3(vec3(x * 6.5 + 3.0, y * 5.0 - t * 3.3, t * 0.7 + vSeed * 5.0));
+        float turb = n1 * 0.65 + n2 * 0.35;
+        // the body sways and splits as it climbs
+        float xs = x + (n1 - 0.5) * 0.42 * y + (n2 - 0.5) * 0.08;
+        float width = 0.44 * (1.0 - y) * (1.0 - y) + 0.07 * (1.0 - y) + 0.02;
+        float body = 1.0 - smoothstep(0.0, width, abs(xs));
+        // erode with noise: the tip tears into licks and wisps
+        float heat = body * (1.25 - y * 1.05) - (1.0 - turb) * 0.62 * (0.3 + y);
+        heat = clamp(heat * 1.55, 0.0, 1.0) * smoothstep(0.0, 0.08, y) * smoothstep(1.0, 0.8, y);
+        float a = smoothstep(0.0, 0.55, heat);
+        vec3 col = fireRamp(heat * 0.82 + 0.04);
+        // cleaner, bluish combustion right at the wood
+        col = mix(col, col * vec3(0.6, 0.7, 1.3), smoothstep(0.1, 0.0, y) * 0.5);
         float k = uI * uFlick * vK;
         gl_FragColor = vec4(col * a * k, a);
       }`,
@@ -322,13 +323,13 @@ export function hearthFire(world, c, { width = 0.8, depth = 0.4, shadow = true }
 
   /* flames */
   const tongues = [];
-  for (let i = 0; i < 11; i++) {
-    const t = i / 10;
-    tongues.push({ x: c.x + (t - 0.5) * width * 0.72 + (R() - 0.5) * 0.05, y: c.y + 0.17 + R() * 0.06, z: c.z + (R() - 0.5) * depth * 0.5, seed: R() * 10, w: 0.16 + R() * 0.12, h: 0.32 + R() * 0.34 * (1 - Math.abs(t - 0.5)), k: 0.7 + R() * 0.4 });
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7, mid = 1 - Math.abs(t - 0.5) * 2;
+    tongues.push({ x: c.x + (t - 0.5) * width * 0.7 + (R() - 0.5) * 0.06, y: c.y + 0.12 + R() * 0.05, z: c.z + (R() - 0.5) * depth * 0.45, seed: R() * 10, w: 0.3 + R() * 0.16, h: 0.36 + mid * 0.34 + R() * 0.12, k: 0.55 + R() * 0.3 });
   }
-  // a couple of low, wide licks along the coal bed
-  tongues.push({ x: c.x - 0.1, y: c.y + 0.08, z: c.z + 0.06, seed: 3.3, w: 0.42, h: 0.16, k: 0.55 });
-  tongues.push({ x: c.x + 0.14, y: c.y + 0.08, z: c.z - 0.05, seed: 7.7, w: 0.38, h: 0.14, k: 0.5 });
+  // low, wide licks along the coal bed
+  tongues.push({ x: c.x - 0.12, y: c.y + 0.06, z: c.z + 0.07, seed: 3.3, w: 0.5, h: 0.2, k: 0.5 });
+  tongues.push({ x: c.x + 0.15, y: c.y + 0.06, z: c.z - 0.04, seed: 7.7, w: 0.46, h: 0.18, k: 0.45 });
   const fl = flames(world, tongues);
   const em = embers(world, c.clone().add(new THREE.Vector3(0, 0.25, 0)), { spread: [width * 0.7, depth * 0.6] });
 

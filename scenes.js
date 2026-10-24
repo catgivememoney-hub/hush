@@ -223,7 +223,7 @@ function buildHearth(world, renderer) {
   const trim = pbr('wood', [1, 1], { color: 0x3e2e22, roughness: 0.45 }, 'dark_wooden_planks');
   const brick = pbr('brick', [2.2, 2.4], { color: 0xb29888 }, 'red_brick_03');
   const sooty = pbr('brick', [1.1, 0.9], { color: 0x3a2c26 }, 'red_brick_03');
-  const hearthStone = pbr('stone', [1.5, 0.6], { color: 0x8a8480, roughness: 0.6 }, 'stone_tiles_02');
+  const hearthStone = pbr('stone', [1.5, 0.6], { color: 0x6e6a66, roughness: 0.9 }, 'stone_tiles_02');
 
   /* floor & ceiling */
   const fl = new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, D), floor); fl.position.y = -0.05; fl.receiveShadow = true; S.add(fl);
@@ -309,13 +309,13 @@ function buildHearth(world, renderer) {
   // warm light spilling onto the hearth and floor right in front of the opening
   // the light the room actually receives: a wide warm cone from the mouth of the firebox,
   // casting the long soft furniture shadows; it breathes with the flames
-  const spill = new THREE.SpotLight(0xff9048, 30, 16, 1.4, 0.9, 1.35);
-  spill.position.set(0, 0.55, front - 0.12); spill.target.position.set(0, 0.55, front + 3);
+  const spill = new THREE.SpotLight(0xff9048, 22, 16, 1.25, 0.9, 1.35);
+  spill.position.set(0, 0.62, front - 0.2); spill.target.position.set(0, 0.75, front + 3);
   spill.castShadow = true; spill.shadow.mapSize.set(2048, 2048); spill.shadow.bias = -0.0006; spill.shadow.normalBias = 0.02; spill.shadow.radius = 5;
   spill.shadow.camera.near = 0.1; spill.shadow.camera.far = 14;
   S.add(spill, spill.target);
   const up = new THREE.PointLight(0xff8040, 2.2, 9, 1.3); up.position.set(0, 1.9, front + 0.9); S.add(up);
-  world.onUpdate(() => { const k = fire.flicker(); spill.intensity = 26 * k; up.intensity = 2.2 * k; });
+  world.onUpdate(() => { const k = fire.flicker(); spill.intensity = 22 * k; up.intensity = 2.2 * k; });
 
   /* log store beside the hearth: stacked rounds with cut ends */
   {
@@ -390,7 +390,7 @@ function buildHearth(world, renderer) {
           // refraction: inside a bead the view flips and shifts
           vec2 ruv = uv - dd.xy * 0.03 * dd.z;
           vec3 col = outside(ruv, t);
-          col = mix(col, outside(uv * vec2(1.0, -0.6) + vec2(0.0, 0.9), t) * 1.4 + 0.006, dd.z * 0.6);
+          col = mix(col, outside(uv * vec2(1.0, -0.6) + vec2(0.0, 0.9), t) * 1.15 + 0.003, dd.z * 0.4);
           col *= 1.0 - m * 0.15;
           // a warm glint of the fire on the lower-left of each bead, a cool rim on the upper-right
           float glint = smoothstep(0.5, 0.95, dot(-dd.xy, normalize(vec2(-0.6, -0.8)))) * dd.z;
