@@ -96,6 +96,8 @@ body.ready .tile, #menu.open .tile { opacity: 1; transform: none; filter: none; 
   background: radial-gradient(ellipse at 50% 45%, rgba(10,12,13,0.15), rgba(5,6,7,0.6));
   transition: opacity 0.7s var(--ease); }
 #menu.open { opacity: 1; pointer-events: auto; }
+/* a closed menu must never catch clicks meant for the landing tiles underneath */
+#menu:not(.open), #menu:not(.open) * { pointer-events: none !important; }
 .panel { width: min(980px, 92vw); height: min(620px, 86vh); border-radius: 22px; display: grid; grid-template-columns: 180px 1fr; overflow: hidden;
   transform: translateY(18px) scale(0.975); filter: blur(6px); transition: transform 0.9s var(--ease), filter 0.8s var(--ease); }
 #menu.open .panel { transform: none; filter: none; }
