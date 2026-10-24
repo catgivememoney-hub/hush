@@ -200,7 +200,7 @@ export class Menu {
     const p = this.pages.control.p, s = this.s, ch = () => this.h.change();
     p.appendChild(this.row('鼠标灵敏度', this.slider(0.2, 3, 0.05, s.sens, (v) => { s.sens = v; ch(); }, (v) => v.toFixed(2))));
     p.appendChild(this.row('反转 Y 轴', this.toggle(s.invertY, (v) => { s.invertY = v; ch(); })));
-    p.appendChild(this.row('准心', this.chips([['dot', '白点'], ['cross', '十字']], s.crosshair, (v) => { s.crosshair = v; ch(); })));
+    p.appendChild(this.row('准心', this.chips([['dot', '白点 Dot'], ['cross', '十字 Cross'], ['none', '关闭 Off']], s.crosshair, (v) => { s.crosshair = v; ch(); })));
     // move the crosshair anywhere on screen (% of the screen from centre); focus follows it
     const pct = (v) => (v > 0 ? '+' : '') + v + '%';
     const xs = this.slider(-40, 40, 1, s.xhX, (v) => { s.xhX = v; ch(); }, pct);
