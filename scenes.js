@@ -310,7 +310,7 @@ function buildHearth(world, renderer) {
   // the light the room actually receives: a wide warm cone from the mouth of the firebox,
   // casting the long soft furniture shadows; it breathes with the flames
   const spill = new THREE.SpotLight(0xff9048, 22, 16, 1.25, 0.9, 1.35);
-  spill.position.set(0, 0.62, front - 0.2); spill.target.position.set(0, 0.75, front + 3);
+  spill.position.set(0, 0.5, fz + 0.14); spill.target.position.set(0, 0.6, front + 3);
   spill.castShadow = true; spill.shadow.mapSize.set(2048, 2048); spill.shadow.bias = -0.0006; spill.shadow.normalBias = 0.02; spill.shadow.radius = 5;
   spill.shadow.camera.near = 0.1; spill.shadow.camera.far = 14;
   S.add(spill, spill.target);

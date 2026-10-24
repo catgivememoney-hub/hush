@@ -74,13 +74,14 @@ function flames(world, tongues, { intensity = 1.35 } = {}) {
         float turb = n1 * 0.65 + n2 * 0.35;
         // the body sways and splits as it climbs
         float xs = x + (n1 - 0.5) * 0.42 * y + (n2 - 0.5) * 0.08;
-        float width = 0.44 * (1.0 - y) * (1.0 - y) + 0.07 * (1.0 - y) + 0.02;
+        float width = 0.4 * pow(1.0 - y, 0.85) * (0.75 + 0.25 * (1.0 - y)) + 0.03;
         float body = 1.0 - smoothstep(0.0, width, abs(xs));
         // erode with noise: the tip tears into licks and wisps
-        float heat = body * (1.25 - y * 1.05) - (1.0 - turb) * 0.62 * (0.3 + y);
-        heat = clamp(heat * 1.55, 0.0, 1.0) * smoothstep(0.0, 0.08, y) * smoothstep(1.0, 0.8, y);
-        float a = smoothstep(0.0, 0.55, heat);
-        vec3 col = fireRamp(heat * 0.82 + 0.04);
+        float n3 = vn3(vec3(x * 4.0, y * 3.0 - t * 2.4, t * 0.9 + vSeed));
+        float heat = body * (1.2 - y * 1.1) - (1.0 - turb) * 0.55 * (0.25 + y) - (1.0 - n3) * 0.25 * y;
+        heat = clamp(heat * 1.2, 0.0, 1.0) * smoothstep(0.0, 0.08, y) * smoothstep(1.0, 0.8, y);
+        float a = smoothstep(0.0, 0.85, heat);
+        vec3 col = fireRamp(heat * 0.78 + 0.05);
         // cleaner, bluish combustion right at the wood
         col = mix(col, col * vec3(0.6, 0.7, 1.3), smoothstep(0.1, 0.0, y) * 0.5);
         float k = uI * uFlick * vK;
