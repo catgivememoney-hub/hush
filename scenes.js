@@ -356,31 +356,48 @@ function buildHearth(world, renderer) {
         uniform float uTime; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-        // a field of beaded drops, some running down in streaks
-        float drops(vec2 uv, float t){
-          vec2 g = uv * vec2(18.0, 10.0);
+        float fb(vec2 p){ return n(p) * 0.5 + n(p * 2.1) * 0.3 + n(p * 4.3) * 0.2; }
+        // the night outside, seen through wet glass (slightly smeared)
+        vec3 outside(vec2 uv, float t){
+          float sky = smoothstep(0.3, 1.0, uv.y);
+          vec3 c = mix(vec3(0.018, 0.022, 0.03), vec3(0.05, 0.06, 0.08), sky);
+          float edge = 0.5 + fb(vec2(uv.x * 6.0, 2.0)) * 0.32 + fb(vec2(uv.x * 22.0, 5.0)) * 0.08;
+          float trees = smoothstep(0.03, -0.03, uv.y - edge);
+          c = mix(c, vec3(0.008, 0.01, 0.012), trees * 0.9);
+          float streak = smoothstep(0.93, 1.0, n(vec2(uv.x * 160.0 + uv.y * 5.0, uv.y * 4.0 + t * 10.0)));
+          return c + streak * 0.012;
+        }
+        // beads of water: each refracts a flipped, brighter bit of the scene; a few slide down
+        vec4 drops(vec2 uv, float t, float sc){
+          vec2 g = uv * vec2(26.0, 15.0) * sc;
           vec2 id = floor(g); vec2 f = fract(g) - 0.5;
-          float r = h(id);
-          float run = step(0.82, r);
-          float y = run > 0.5 ? fract(-t * (0.06 + r * 0.1) + r) * 2.0 - 1.0 : 0.0;
-          vec2 c = vec2((h(id + 3.1) - 0.5) * 0.6, (h(id + 7.7) - 0.5) * 0.6 + y);
-          float d = length((f - c) * vec2(1.0, 0.75));
-          float bead = smoothstep(0.12 + r * 0.08, 0.04, d) * step(0.35, r);
-          float trail = run * smoothstep(0.05, 0.0, abs(f.x - c.x)) * smoothstep(c.y, c.y + 0.6, f.y) * 0.45;
-          return bead + trail;
+          float r = h(id + sc);
+          float run = step(0.9, r);
+          float y = run > 0.5 ? fract(-t * (0.04 + r * 0.08) + r) * 2.4 - 1.2 : 0.0;
+          vec2 c = vec2((h(id + 3.1) - 0.5) * 0.55, (h(id + 7.7) - 0.5) * 0.55 + y);
+          vec2 d = (f - c) * vec2(1.0, 0.8);
+          float rad = 0.08 + r * 0.12;
+          float bead = smoothstep(rad, rad * 0.7, length(d)) * step(0.4, r);
+          float trail = run * smoothstep(0.03, 0.0, abs(f.x - c.x)) * smoothstep(c.y, c.y + 0.7, f.y) * 0.5;
+          return vec4(d / rad, bead, trail);
         }
         void main(){
           vec2 uv = vUv;
-          // the night outside: deep blue-grey, darker trees against a faint sky, falling rain
-          float sky = smoothstep(0.35, 1.0, uv.y);
-          float trees = smoothstep(0.02, -0.02, uv.y - (0.42 + n(vec2(uv.x * 7.0, 1.0)) * 0.25 + n(vec2(uv.x * 23.0, 4.0)) * 0.06));
-          vec3 col = mix(vec3(0.035, 0.045, 0.06), vec3(0.09, 0.11, 0.15), sky);
-          col = mix(col, vec3(0.012, 0.016, 0.02), trees * 0.85);
-          float streak = smoothstep(0.92, 1.0, n(vec2(uv.x * 140.0 + uv.y * 6.0, uv.y * 6.0 + uTime * 9.0)));
-          col += streak * 0.03;
-          float d = drops(uv, uTime) + drops(uv * 1.7 + 4.0, uTime * 0.8) * 0.6;
-          col += d * vec3(0.12, 0.13, 0.15);
-          gl_FragColor = vec4(col, 0.96);
+          float t = uTime;
+          vec4 a = drops(uv, t, 1.0), b = drops(uv + 0.37, t * 0.8, 1.7);
+          vec4 dd = a.z > b.z ? a : b;
+          float m = max(dd.z, max(a.w, b.w));
+          // refraction: inside a bead the view flips and shifts
+          vec2 ruv = uv - dd.xy * 0.03 * dd.z;
+          vec3 col = outside(ruv, t);
+          col = mix(col, outside(uv * vec2(1.0, -0.6) + vec2(0.0, 0.9), t) * 1.4 + 0.006, dd.z * 0.6);
+          col *= 1.0 - m * 0.15;
+          // a warm glint of the fire on the lower-left of each bead, a cool rim on the upper-right
+          float glint = smoothstep(0.5, 0.95, dot(-dd.xy, normalize(vec2(-0.6, -0.8)))) * dd.z;
+          col += vec3(0.32, 0.17, 0.07) * glint * 0.5;
+          col += vec3(0.04, 0.05, 0.06) * smoothstep(0.7, 1.0, length(dd.xy)) * dd.z;
+          col += vec3(0.02, 0.02, 0.024) * max(a.w, b.w);
+          gl_FragColor = vec4(col, 0.97);
         }`,
     });
     const gp = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), glass);
