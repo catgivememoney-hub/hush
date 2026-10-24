@@ -52,6 +52,10 @@ function applySettings() {
   camera.fov = settings.fov; camera.updateProjectionMatrix();
   player.sens = settings.sens; player.invertY = settings.invertY; player.shake = settings.shake;
   ui.xh.dataset.type = settings.crosshair;
+  ui.xh.style.left = `calc(50% + ${settings.xhX}vw)`;
+  ui.xh.style.top = `calc(50% - ${settings.xhY}vh)`;
+  player.aimOffset = { x: settings.xhX / 50, y: settings.xhY / 50 };   // screen % → NDC
+  if (!settings.crouchToggle) player.actions.crouch = false;
   audio.vol = { ...settings.vol }; audio.applyVolume();
 }
 
@@ -83,12 +87,13 @@ addEventListener('keydown', (e) => {
   const a = actionOf(e.code);
   if (!a) return;
   if (state === 'playing') e.preventDefault();
-  if (a === 'light' && !e.repeat && state === 'playing') player.cycleLight();
+  if (a === 'crouch' && settings.crouchToggle) { if (!e.repeat && state === 'playing') player.actions.crouch = !player.actions.crouch; }
+  else if (a === 'light' && !e.repeat && state === 'playing') player.cycleLight();
   else if (a === 'climb' && !e.repeat && state === 'playing') player.tryClimb();
   else player.actions[a] = true;
 });
-addEventListener('keyup', (e) => { const a = actionOf(e.code); if (a) player.actions[a] = false; });
-addEventListener('blur', () => { player.actions = {}; });
+addEventListener('keyup', (e) => { const a = actionOf(e.code); if (a && !(a === 'crouch' && settings.crouchToggle)) player.actions[a] = false; });
+addEventListener('blur', () => { const c = settings.crouchToggle && player.actions.crouch; player.actions = c ? { crouch: true } : {}; });
 
 let dragging = false;
 document.addEventListener('mousemove', (e) => {
@@ -123,7 +128,7 @@ document.addEventListener('pointerlockchange', () => {
 
 function openMenu() {
   state = 'menu'; menuOpenedAt = performance.now();
-  player.enabled = false; player.actions = {};
+  player.enabled = false; player.actions = settings.crouchToggle && player.actions.crouch ? { crouch: true } : {};
   menu.open();
   document.body.classList.add('paused');
   ui.xh.classList.add('hide');

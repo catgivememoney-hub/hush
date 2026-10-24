@@ -1,7 +1,7 @@
 // Menu, landing tiles, settings persistence and key bindings.
 export const DEFAULTS = {
   binds: { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sprint: 'ShiftLeft', crouch: 'KeyC', climb: 'KeyE', light: 'KeyF' },
-  crosshair: 'dot',
+  crosshair: 'dot', xhX: 0, xhY: 0, crouchToggle: true,
   vol: { master: 0.8, ambience: 0.75, sfx: 0.8 },
   sens: 1, invertY: false,
   style: 'default', dof: true, shadows: true, scale: 1, shake: 1, fov: 72,
@@ -201,6 +201,16 @@ export class Menu {
     p.appendChild(this.row('鼠标灵敏度', this.slider(0.2, 3, 0.05, s.sens, (v) => { s.sens = v; ch(); }, (v) => v.toFixed(2))));
     p.appendChild(this.row('反转 Y 轴', this.toggle(s.invertY, (v) => { s.invertY = v; ch(); })));
     p.appendChild(this.row('准心', this.chips([['dot', '白点'], ['cross', '十字']], s.crosshair, (v) => { s.crosshair = v; ch(); })));
+    // move the crosshair anywhere on screen (% of the screen from centre); focus follows it
+    const pct = (v) => (v > 0 ? '+' : '') + v + '%';
+    const xs = this.slider(-40, 40, 1, s.xhX, (v) => { s.xhX = v; ch(); }, pct);
+    const ys = this.slider(-40, 40, 1, s.xhY, (v) => { s.xhY = v; ch(); }, pct);
+    p.appendChild(this.row('准心 左右 X', xs));
+    p.appendChild(this.row('准心 上下 Y', ys));
+    const center = this.el('button', 'ghost', '准心居中 Center');
+    center.onclick = () => { s.xhX = 0; s.xhY = 0; for (const w of [xs, ys]) { const i = w.querySelector('input'); i.value = 0; i.oninput(); } ch(); };
+    p.appendChild(center);
+    p.appendChild(this.row('蹲伏方式', this.chips([[true, '切换 Toggle'], [false, '按住 Hold']], s.crouchToggle, (v) => { s.crouchToggle = v; ch(); })));
     const binds = this.el('div', 'binds');
     this.bindBtns = {};
     Object.keys(ACTION_NAMES).forEach((a) => {

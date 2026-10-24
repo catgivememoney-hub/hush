@@ -376,7 +376,10 @@ export class Player {
   // per-frame aim query: focus distance + climb affordance
   aim() {
     const eye = this.eyePos(new THREE.Vector3());
-    const d = new THREE.Vector3(); this.camera.getWorldDirection(d);
+    const d = new THREE.Vector3();
+    const o = this.aimOffset;
+    if (o && (o.x || o.y)) { this.camera.updateMatrixWorld(); d.set(o.x, o.y, 0.5).unproject(this.camera).sub(this.camera.position).normalize(); }
+    else this.camera.getWorldDirection(d);
     const hit = this.ray(eye, d, 120);
     this.aimDist = hit ? Math.max(0.4, hit.distance) : 60;
     this.climbable = this.mode === 'climb' || !!this.wallProbe();
