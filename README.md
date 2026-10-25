@@ -3,7 +3,7 @@
 Two walkable, first-person ambient scenes built with Three.js, made to run in the background:
 
 - **雨林 Rainforest** — a creek trail under a dripping canopy in a heavy tropical shower.
-- **壁炉 Fireplace** — a quiet room with a wood fire, rain running down the window.
+- **壁炉 Fireplace** — a quiet, closed room lit only by a wood fire. The full recipe for its atmosphere is in [HEARTH_ATMOSPHERE.md](HEARTH_ATMOSPHERE.md).
 
 Click a scene to enter. **WASD** walk · **Shift** faster · **mouse** look · **H** hide the interface · **Esc** menu (graphics, sound, scene).
 Add `?lite` to the URL for lighter foliage on smaller GPUs.
