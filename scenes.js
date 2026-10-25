@@ -240,17 +240,12 @@ function buildHearth(world, renderer) {
   const ceil = new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, D), plaster); ceil.position.y = Hh + 0.05; ceil.receiveShadow = true; S.add(ceil);
   for (let z = zB + 0.9; z < zF; z += 1.6) M.add(new THREE.BoxGeometry(W, 0.22, 0.18), mat4(0, Hh - 0.11, z), beamM);
 
-  /* walls with wainscot; right wall has a window opening */
-  const win = { z0: -0.4, z1: 1.0, y0: 0.92, y1: 2.42 };
+  /* four solid walls with wainscot (the room is closed: no window) */
   const wallPiece = (w, h, d, x, y, z) => { M.add(new THREE.BoxGeometry(w, h, d), mat4(x, y, z), plaster); world.collideBox(x, y, z, w, h, d); };
   wallPiece(W, Hh, 0.2, 0, Hh / 2, zB - 0.1);
   wallPiece(W, Hh, 0.2, 0, Hh / 2, zF + 0.1);
   wallPiece(0.2, Hh, D, xL - 0.1, Hh / 2, 0);
-  // right wall split around the window
-  wallPiece(0.2, Hh, win.z0 - zB, xR + 0.1, Hh / 2, (zB + win.z0) / 2);
-  wallPiece(0.2, Hh, zF - win.z1, xR + 0.1, Hh / 2, (zF + win.z1) / 2);
-  wallPiece(0.2, win.y0, win.z1 - win.z0, xR + 0.1, win.y0 / 2, (win.z0 + win.z1) / 2);
-  wallPiece(0.2, Hh - win.y1, win.z1 - win.z0, xR + 0.1, (Hh + win.y1) / 2, (win.z0 + win.z1) / 2);
+  wallPiece(0.2, Hh, D, xR + 0.1, Hh / 2, 0);
   // wainscot panels + rails + skirting
   const wains = (len, x, z, ry, skip = null) => {
     M.add(new THREE.BoxGeometry(len, 0.95, 0.025), mat4(x, 0.475, z, ry), panel);
@@ -261,9 +256,7 @@ function buildHearth(world, renderer) {
   };
   wains(W, 0, zF - 0.012, Math.PI, (o) => Math.abs(o - 1.8) < 0.6);
   wains(D, xL + 0.012, 0, Math.PI / 2);
-  wains(win.z0 - zB, xR - 0.012, (zB + win.z0) / 2, -Math.PI / 2);
-  wains(zF - win.z1, xR - 0.012, (zF + win.z1) / 2, -Math.PI / 2);
-  wains(win.z1 - win.z0, xR - 0.012, (win.z0 + win.z1) / 2, -Math.PI / 2);
+  wains(D, xR - 0.012, 0, -Math.PI / 2);
   // back wall wainscot either side of the chimney breast
   wains(2.0, -2.2, zB + 0.012, 0); wains(2.0, 2.2, zB + 0.012, 0);
   // crown moulding
@@ -346,91 +339,8 @@ function buildHearth(world, renderer) {
     world.collideBox(1.62, 0.35, zB + 0.32, 0.6, 0.7, 0.5);
   }
 
-  /* window: frame, mullions, rainy glass, night outside */
-  const wx = xR - 0.02, wz = (win.z0 + win.z1) / 2, wy = (win.y0 + win.y1) / 2, ww = win.z1 - win.z0, wh = win.y1 - win.y0;
-  {
-    const F = new Merger();
-    F.add(new THREE.BoxGeometry(0.16, 0.08, ww + 0.2), mat4(wx - 0.02, win.y0 - 0.02, wz), trim);     // sill
-    F.add(new THREE.BoxGeometry(0.26, 0.04, ww + 0.3), mat4(wx - 0.08, win.y0 + 0.02, wz), trim);
-    F.add(new THREE.BoxGeometry(0.1, 0.08, ww + 0.16), mat4(wx, win.y1 + 0.02, wz), trim);
-    for (const zz of [win.z0 - 0.04, win.z1 + 0.04]) F.add(new THREE.BoxGeometry(0.1, wh + 0.12, 0.08), mat4(wx, wy, zz), trim);
-    F.add(new THREE.BoxGeometry(0.06, wh, 0.045), mat4(wx + 0.05, wy, wz), trim);
-    F.add(new THREE.BoxGeometry(0.06, 0.045, ww), mat4(wx + 0.05, wy + wh * 0.12, wz), trim);
-    F.build(S);
-    const glass = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, fog: false,
-      uniforms: { uTime: U.time },
-      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: /* glsl */`
-        uniform float uTime; varying vec2 vUv;
-        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-        float fb(vec2 p){ return n(p) * 0.5 + n(p * 2.1) * 0.3 + n(p * 4.3) * 0.2; }
-        // the night outside, seen through wet glass (slightly smeared)
-        vec3 outside(vec2 uv, float t){
-          float sky = smoothstep(0.3, 1.0, uv.y);
-          vec3 c = mix(vec3(0.018, 0.022, 0.03), vec3(0.05, 0.06, 0.08), sky);
-          float edge = 0.5 + fb(vec2(uv.x * 6.0, 2.0)) * 0.32 + fb(vec2(uv.x * 22.0, 5.0)) * 0.08;
-          float trees = smoothstep(0.03, -0.03, uv.y - edge);
-          c = mix(c, vec3(0.008, 0.01, 0.012), trees * 0.9);
-          float streak = smoothstep(0.93, 1.0, n(vec2(uv.x * 160.0 + uv.y * 5.0, uv.y * 4.0 + t * 10.0)));
-          return c + streak * 0.012;
-        }
-        // beads of water: each refracts a flipped, brighter bit of the scene; a few slide down
-        vec4 drops(vec2 uv, float t, float sc){
-          vec2 g = uv * vec2(26.0, 15.0) * sc;
-          vec2 id = floor(g); vec2 f = fract(g) - 0.5;
-          float r = h(id + sc);
-          float run = step(0.9, r);
-          float y = run > 0.5 ? fract(-t * (0.04 + r * 0.08) + r) * 2.4 - 1.2 : 0.0;
-          vec2 c = vec2((h(id + 3.1) - 0.5) * 0.55, (h(id + 7.7) - 0.5) * 0.55 + y);
-          vec2 d = (f - c) * vec2(1.0, 0.8);
-          float rad = 0.08 + r * 0.12;
-          float bead = smoothstep(rad, rad * 0.7, length(d)) * step(0.4, r);
-          float trail = run * smoothstep(0.03, 0.0, abs(f.x - c.x)) * smoothstep(c.y, c.y + 0.7, f.y) * 0.5;
-          return vec4(d / rad, bead, trail);
-        }
-        void main(){
-          vec2 uv = vUv;
-          float t = uTime;
-          vec4 a = drops(uv, t, 1.0), b = drops(uv + 0.37, t * 0.8, 1.7);
-          vec4 dd = a.z > b.z ? a : b;
-          float m = max(dd.z, max(a.w, b.w));
-          // refraction: inside a bead the view flips and shifts
-          vec2 ruv = uv - dd.xy * 0.03 * dd.z;
-          vec3 col = outside(ruv, t);
-          col = mix(col, outside(uv * vec2(1.0, -0.6) + vec2(0.0, 0.9), t) * 1.15 + 0.003, dd.z * 0.4);
-          col *= 1.0 - m * 0.15;
-          // a warm glint of the fire on the lower-left of each bead, a cool rim on the upper-right
-          float glint = smoothstep(0.5, 0.95, dot(-dd.xy, normalize(vec2(-0.6, -0.8)))) * dd.z;
-          col += vec3(0.32, 0.17, 0.07) * glint * 0.5;
-          col += vec3(0.04, 0.05, 0.06) * smoothstep(0.7, 1.0, length(dd.xy)) * dd.z;
-          col += vec3(0.02, 0.02, 0.024) * max(a.w, b.w);
-          gl_FragColor = vec4(col, 0.97);
-        }`,
-    });
-    const gp = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), glass);
-    gp.position.set(xR + 0.06, wy, wz); gp.rotation.y = -Math.PI / 2; S.add(gp);
-    // cold moonlight through the panes onto the floor (mullions cast real shadows)
-    const moonL = new THREE.SpotLight(0x8a9ec8, 9, 16, 0.42, 0.6, 1.4);
-    moonL.position.set(xR + 4, 4.6, wz + 0.6); moonL.target.position.set(0.6, 0, wz - 0.2);
-    moonL.castShadow = true; moonL.shadow.mapSize.set(1024, 1024); moonL.shadow.bias = -0.0005; moonL.shadow.radius = 4;
-    S.add(moonL, moonL.target);
-    // curtains: heavy linen drapes either side, gently stirring
-    const cloth = pbr('plaster', [1, 3], { color: 0x6a3a2c, roughness: 0.95, side: THREE.DoubleSide }, 'fabric_pattern_07');
-    hangSway(cloth, 0.008);
-    for (const s of [-1, 1]) {
-      const g = new THREE.PlaneGeometry(0.55, 2.45, 22, 16);
-      const p = g.attributes.position, uv = g.attributes.uv;
-      for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); const t = (1.225 - y) / 2.45; p.setZ(i, Math.sin(x * 34) * 0.035 * (0.6 + t) + Math.sin(x * 9) * 0.02); uv.setY(i, 1 - t); }
-      g.computeVertexNormals();
-      const c = new THREE.Mesh(g, cloth);
-      c.position.set(xR - 0.12, 2.55 - 1.225, s < 0 ? win.z0 - 0.3 : win.z1 + 0.3); c.rotation.y = -Math.PI / 2;
-      c.castShadow = c.receiveShadow = true; S.add(c);
-    }
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, ww + 1.4, 10), brass); rod.rotation.x = Math.PI / 2; rod.position.set(xR - 0.12, 2.6, wz); S.add(rod);
-    placeModel(world, 'potted_plant_04', { x: xR - 0.13, y: win.y0 + 0.04, z: wz + 0.35, ry: 0.6, s: 1.2, tint: 0xb8b8a8, wind: [0.005, 0.2] });
-  }
+  /* the wall where the window was: a framed picture so it doesn't read as blank */
+  placeModel(world, 'hanging_picture_frame_03', { x: xR - 0.02, y: 1.45, z: 0.3, ry: -Math.PI / 2, s: 1.0, tint: 0xa8a098 });
 
   /* rug */
   const rugM = pbr('plaster', [1, 1], { color: 0xa87862, roughness: 0.95 }, 'fabric_pattern_07');
@@ -484,7 +394,7 @@ function buildHearth(world, renderer) {
 
   world.spawn = { pos: new THREE.Vector3(0.15, 0.2, 0.9), yaw: -0.03, pitch: -0.12 };
   world.surface = (x, z) => (z < front + 0.6 && Math.abs(x) < bw / 2 + 0.15 ? 'stone' : 'wood');
-  world.ambience = { windowrain: 0.06 };
+  world.ambience = {};   // no window, no rain: the fire recording and the clock are the whole soundscape
   // the recorded fire is the star of this room: loud, and it carries to every corner
   world.streams = [{ url: SOUNDS.fire.url, gain: 2.7, pos: fire.light.position.clone(), ref: 3.5, rolloff: 0.35, fallback: null }];
   world.tweak = { exposure: 1.25, bloom: 0.75 };
